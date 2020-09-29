@@ -1,9 +1,3 @@
-/*
- * pid.c
- *
- *  Created on: 8 ����. 2020 �.
- *      Author: admin
- */
 #include "pid.h"
 
 void init_pid(Reference *reference, const Parameters *parameters) {
@@ -12,11 +6,11 @@ void init_pid(Reference *reference, const Parameters *parameters) {
 }
 
 
-bool pid_compute(Reference *reference, const Parameters *parameters) {
+float pid_compute(float input, Reference *reference, const Parameters *parameters) {
+   reference->input = input;
    if(!reference->in_auto) {
-	   printf("Pid setpoint = %f\n", reference->setpoint.float_val);
-	   reference->output = reference->setpoint.float_val;
-	   return false;
+	   reference->output = reference->setpoint;
+	   return reference->setpoint;
    }
 
    unsigned long now = esp_timer_get_time()/1000;
@@ -25,36 +19,27 @@ bool pid_compute(Reference *reference, const Parameters *parameters) {
    if(time_change>=parameters->sample_time) {
 
       float input = reference->input;
-      float error = reference->setpoint.float_val - input;
-      float dInput = (error - reference->last_error)/time_change;
-      reference->output_sum+= (parameters->ki.float_val * error);
-      if(reference->output_sum > parameters->max_limit) reference->output_sum= parameters->max_limit;
-      else if(reference->output_sum < parameters->min_limit) reference->output_sum= parameters->min_limit;
+      float error = reference->setpoint - input;
+      float dInput = (error - reference->last_error) / time_change;
+      reference->output_sum += (parameters->ki * error);
+      if (reference->output_sum > parameters->max_limit)
+         reference->output_sum = parameters->max_limit;
+      else if (reference->output_sum < parameters->min_limit)
+         reference->output_sum = parameters->min_limit;
 
-      printf("Pid setpoint = %f\n", reference->setpoint.float_val);
-      printf("Input: %f\n", input);
-      printf("Error: %f\n", error);
-      printf("Diff input = %f\n", dInput);
-      printf("Integral sum = %f\n", reference->output_sum);
-      printf("parameters: KP =  %f, KI = %f, KD = %f\n", parameters->kp.float_val, parameters->ki.float_val, parameters->kd.float_val);
-      printf("max limit = %f, min limit = %f\n", parameters->max_limit, parameters->min_limit);
-      printf("PID mode is %d\n", reference->in_auto);
+      float output = parameters->kp * error + reference->output_sum + parameters->kd * dInput;
 
-	  float output = parameters->kp.float_val*error + reference->output_sum + parameters->kd.float_val*dInput;
-
-	  if(output >  parameters->max_limit) output =  parameters->max_limit;
-      else if(output < parameters->min_limit) output = parameters->min_limit;
-	    reference->output = output;
-
-		printf("Output: %f\n", reference->output);
-		printf("------------------");
-		printf("------------------\n");
+      if (output > parameters->max_limit)
+         output = parameters->max_limit;
+      else if (output < parameters->min_limit)
+         output = parameters->min_limit;
+      reference->output = output;
 
       reference->last_error = error;
       reference->last_time = now;
-	    return true;
+      return output;
    }
-   else return false;
+   else return 0.0;
 }
 
 
@@ -65,8 +50,8 @@ void pid_set_sample_time(Parameters *parameters, int new_sample_time) {
    {
       float ratio  = (float)new_sample_time
                       / (float)parameters->sample_time;
-      parameters->ki.float_val *= ratio;
-      parameters->kd.float_val /= ratio;
+      parameters->ki *= ratio;
+      parameters->kd /= ratio;
       parameters->sample_time = (unsigned long)new_sample_time;
    }
 }
@@ -90,5 +75,5 @@ void pid_set_mode(Reference *reference, Parameters *parameters, int mode) {
 
 
 void pid_setpoint(Reference *reference, float* setpoint) {
-	reference->setpoint.float_val = *setpoint;
+	reference->setpoint = *setpoint;
 }

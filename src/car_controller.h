@@ -5,7 +5,8 @@
 #include "motor.h"
 #include "string.h"
 
-#define DUTY_BIAS 15
+#define DUTY_BIAS 5
+#define SPEED_TRS 95
 #define CAR_FORWARD "esp32/car/forward"
 #define CAR_BACKWARD "esp32/car/backward"
 #define CAR_LEFT "esp32/car/left"
@@ -20,10 +21,11 @@ void handle_sensor(const sensor_data_t *data);
 
 typedef struct
 {
-    uint32_t speed;
+    int32_t speed;
+    int32_t optical_1;
+    int32_t optical_2;
+    int32_t optical_diff;
 } motor_t;
-
-motor_t motor;
 
 typedef enum {
     CAR_STOPPED = 0,  
@@ -32,12 +34,12 @@ typedef enum {
 } car_status_t;
 
 
-void forward(uint32_t value, uint32_t * speed);
-void backward(uint32_t value, uint32_t * speed);
-void stop(uint32_t value, uint32_t * speed);
-void turn_left(uint32_t value);
-void turn_right(uint32_t value);
+void forward(int32_t value, int32_t * speed);
+void backward(int32_t value, int32_t * speed);
+void stop(int32_t value, int32_t * speed);
+void turn_left(int32_t value);
+void turn_right(int32_t value);
 void obstacle_control(int32_t value);
-void change_forw_speed(uint32_t value);
+void change_forw_speed(int32_t value);
 
 #endif

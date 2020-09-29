@@ -380,4 +380,3 @@ void app_main(void)
       NULL);                /* Task handle to keep track of created task */
 
 }
-

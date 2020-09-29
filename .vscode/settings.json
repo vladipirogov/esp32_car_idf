@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "*.ipp": "c"
+        "*.ipp": "c",
+        "cmath": "cpp"
     }
 }

@@ -1,10 +1,3 @@
-/*
- * pid.h
- *
- *  Created on: 8 ����. 2020 �.
- *      Author: admin
- */
-
 #ifndef COMPONENTS_INCLUDE_PID_H_
 #define COMPONENTS_INCLUDE_PID_H_
 
@@ -21,20 +14,13 @@
 #define PARAM "param"
 #define MODE "mode"
 
-typedef union Param {
-	 	uint64_t int_val;
-	 	float float_val;
-	 } Param;
-
-
-	 typedef struct Parameters {
-	 	 Param kp;
-	 	 Param ki;
-	 	 Param kd;
-	 	 double min_limit;
-	 	 double max_limit;
+	 typedef struct {
+	 	 float kp;
+	 	 float ki;
+	 	 float kd;
+	 	 float min_limit;
+	 	 float max_limit;
 	 	 unsigned long sample_time;
-
 	 	 int direction;
 	 	 int pOn;
 	 	} Parameters;
@@ -42,7 +28,7 @@ typedef union Param {
 	 typedef struct {
 	 	float input;
 	 	float output;
-	 	Param setpoint;
+	 	float setpoint;
 	    unsigned long last_time;
 	    float output_sum, last_error;
 	    bool in_auto;
@@ -53,7 +39,7 @@ typedef union Param {
 
     void pid_set_mode(Reference *reference, Parameters *parameters, int Mode);
 
-    bool pid_compute(Reference *reference, const Parameters *parameters);
+    float pid_compute(float input, Reference *reference, const Parameters *parameters);
 
     void pid_set_output_limits(uint32_t, uint32_t);
 

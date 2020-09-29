@@ -6,25 +6,24 @@
 static car_status_t car_status; 
 static Reference reference_1;
 static Reference reference_2;
-static Parameters parameters;
+static Parameters parameters_1;
+static Parameters parameters_2;
+static motor_t motor;
 
 void init_car() {
     //1. mcpwm initialization
   mcpwm_example_gpio_initialize();
   car_status = CAR_STOPPED;
-    parameters.min_limit = 0.0;
-    parameters.max_limit = 250;
-    parameters.sample_time = 100;
-    parameters.direction = DIRECT;
-    parameters.kp.int_val = 2;
-    parameters.ki.float_val = 0.08;
-    parameters.kd.float_val = 0.01;
-  init_pid(&reference_1, &parameters);
-  init_pid(&reference_2, &parameters);
+    parameters_1.min_limit = 0.0; parameters_1.max_limit = 250; parameters_1.sample_time = 100; parameters_1.direction = DIRECT;
+    parameters_2.min_limit = 0.0; parameters_2.max_limit = 250; parameters_2.sample_time = 100; parameters_2.direction = DIRECT;
+    parameters_1.kp = 2; parameters_1.ki = 0.01; parameters_1.kd = 0.01;
+    parameters_2.kp = 2; parameters_2.ki = 0.01; parameters_2.kd = 0.01;
+  init_pid(&reference_1, &parameters_1);
+  init_pid(&reference_2, &parameters_2);
 }
 
 void handle_car(const command_t *command) {
-    uint32_t value = atoi(command->message);
+    int32_t value = atoi(command->message);
     printf("car topic: %s\n", command->topic);
     printf("car value = %d\n", value);
     
@@ -38,24 +37,25 @@ void handle_car(const command_t *command) {
 
 /** */
 void handle_sensor(const sensor_data_t *data) {
+    float output = 0;
   if(car_status == CAR_FORW_RUN) {
     switch (data->sensor) {
     case ULTRASONIC_SENSOR:
         obstacle_control(data->value);
       break;
 
-    case OPTICAL_SENSOR_1:
-     	reference_1.input = data->value;
-	    pid_compute(&reference_1, &parameters);
-        brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, reference_1.output);
-        motor.speed = reference_1.output;
+    case OPTICAL_SENSOR_1: 
+	    output = pid_compute(data->value, &reference_1, &parameters_1);
+        brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, output);
+        motor.speed = output;
       break;
-    case OPTICAL_SENSOR_2:
-        reference_2.input = data->value;
-	    pid_compute(&reference_2, &parameters);
-        brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_1, reference_2.output);
-        motor.speed = reference_2.output;
+
+    case OPTICAL_SENSOR_2: 
+	    output = pid_compute(data->value, &reference_2, &parameters_2);
+        brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_1, output);
+        motor.speed = output;
         break;
+    
     case MAX_SENSORS:
         break;
     }
@@ -63,33 +63,33 @@ void handle_sensor(const sensor_data_t *data) {
 }
 
 /** */
-void change_forw_speed(uint32_t value) {
+void change_forw_speed(int32_t value) {
     if(car_status == CAR_FORW_RUN) {
         printf("Speed changing\n");
         printf("value is: %d \n", value);
-        reference_1.setpoint.float_val = value;
-        reference_2.setpoint.float_val = value;
+        reference_1.setpoint = value;
+        reference_2.setpoint = value;
     }
 }
 
 /** */
-void forward(uint32_t value, uint32_t * speed) {
+void forward(int32_t value, int32_t * speed) {
     printf("Car forward\n");
     car_status = CAR_FORW_RUN;
     printf("value is: %d \n", value);
-    reference_1.setpoint.float_val = value;
-    reference_2.setpoint.float_val = value;
+    reference_1.setpoint = value < SPEED_TRS ? value + DUTY_BIAS : value;
+    reference_2.setpoint = value;
     //brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, value);
     //brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_1, value + DUTY_BIAS);
     *speed = value;
 }
 
 /** */
-void backward(uint32_t value, uint32_t * speed) {
+void backward(int32_t value, int32_t * speed) {
     printf("Car backward: ");
     car_status = CAR_BACK_RUN;
     printf("value is: %d \n", value);
-    brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, value + DUTY_BIAS);
+    brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, value);
     brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_1, value);
     *speed = 0;
     vTaskDelay(300 / portTICK_RATE_MS);
@@ -97,11 +97,11 @@ void backward(uint32_t value, uint32_t * speed) {
 }
 
 /** */
-void stop(uint32_t value, uint32_t * speed) {
+void stop(int32_t value, int32_t * speed) {
     printf("Car stop \n");
     car_status = CAR_STOPPED;
-    reference_1.setpoint.float_val = 0;
-    reference_2.setpoint.float_val = 0;
+    reference_1.setpoint = 0;
+    reference_2.setpoint = 0;
     brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
     brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_1);
     *speed = 0;
@@ -109,7 +109,7 @@ void stop(uint32_t value, uint32_t * speed) {
 }
 
 /** */
-void turn_left(uint32_t value) {
+void turn_left(int32_t value) {
     printf("Car left \n");
     printf("value is: %d \n", value);
     int32_t speed_b = motor.speed + value;
@@ -118,18 +118,18 @@ void turn_left(uint32_t value) {
         speed_b = 255;
     }
     if(car_status == CAR_FORW_RUN)
-        reference_1.setpoint.float_val = speed_b;
+        reference_1.setpoint = speed_b;
     else
         brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, speed_b); //
     vTaskDelay(100 / portTICK_RATE_MS);
     if(car_status == CAR_FORW_RUN)
-        reference_1.setpoint.float_val = value;
+        reference_1.setpoint = value;
     else
         brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, motor.speed);
 }
 
 /** */
-void turn_right(uint32_t value) {
+void turn_right(int32_t value) {
     printf("Car right \n");
     printf("value is: %d \n", value);
     int32_t speed_b = motor.speed + value;
@@ -139,12 +139,12 @@ void turn_right(uint32_t value) {
         speed_b = 255;
     }
     if(car_status == CAR_FORW_RUN)
-        reference_2.setpoint.float_val = speed_b;
+        reference_2.setpoint = speed_b;
     else
         brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_1, speed_b); //
     vTaskDelay(100 / portTICK_RATE_MS);
     if(car_status == CAR_FORW_RUN)
-        reference_2.setpoint.float_val = value;
+        reference_2.setpoint = value;
     else
         brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_1, motor.speed);
 }
